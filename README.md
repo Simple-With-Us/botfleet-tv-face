@@ -1,65 +1,56 @@
-# BotFleet TV-Face Framework v2
+# BotFleet TV-Face Pack v4
 
-**Updated:** 2026-09-26  
-**Transparent backgrounds:** yes  
-**Clips:** enter · hold · return for **all 13** expressions
+Public repo.  Orange TV-bot face system for BotFleet reactive avatars.
 
-## Multi-bot design
+## Download
 
-One player, many skins.  Each BotFleet seat mounts `TVFace` / `TVFaceBoard` with a skin path (`skins/<botId>/`).  Expression IDs and event names stay identical so software does not change when you add a new bot look.
+**Release:** https://github.com/jaywedgeworth22/botfleet-tv-face/releases/tag/tv-face-v4
 
-```
-TV-Face/
-  framework/
-    manifest.json
-    tvface-player.js      # TVFace + TVFaceBoard
-    bot-skin-template.json
-  skins/default/          # Orange TV-Head (canonical)
-    stills/*.png
-    gifs/*_{enter,hold,return}.gif
-  docs/
-```
+- `TV-Face-gifs.zip` — all animated GIFs (transparent)
+- `TV-Face-stills.zip` — all PNG stills + docs + framework
+- `TV-Face.tar.gz` — full pack
 
-## Expressions (complete)
+## Style
 
-fleet · crash · memory · tools · routine · screen · git · webhook · computer · listening · thinking · typing · speaking
+- Orange TV-head robot, cyan neon visor glyphs only
+- Transparent backgrounds (keyed)
+- 480×480 GIFs, head shell still, glyph-only motion
+- Segments: enter / hold / return + still PNG
 
-## State machine
+## BotFleet CursorState coverage
 
-```
-idle → enter → hold (loop) → return → idle
-```
+Maps all 39 states in `framework/manifest.json` → `cursorStateMap`.
 
-## Quick usage
+### Exact / dedicated art
+idle (idle_loop), listening, thinking, working, searching, sleeping, waking,
+happy, excited, celebrate, confused, curious, sad, angry, surprised, scared,
+suspicious, shy, bored, drowsy, proud, playful, laughing, orbit, radar,
+progress, loading, sending, receiving, uploading, notifying, alerting,
+spawning, powering_down, typing (writing), speaking (dictating)
 
-```js
-import { TVFaceBoard } from './framework/tvface-player.js';
-import manifest from './framework/manifest.json';
+### Utility overlays
+- `idle_loop.gif` / `resting_hold.gif` — breathing blink idle
+- `blink.gif` — short blink overlay
+- `anticipate.gif` — pre-enter anticipation
 
-const board = new TVFaceBoard({
-  skinRoot: '/assets/TV-Face/skins',
-  defaultSkin: 'default',
-  manifest,
-});
-board.mount('seat-ops', document.getElementById('face-ops'));
-board.onEvent('seat-ops', 'agent.thinking');
-board.show('seat-ops', 'typing');
-board.toIdle('seat-ops');
-// board.setSkin('seat-ops', 'blue-bot'); // another bot skin
+### Product-cycle extras (unique to TV-Face)
+fleet, crash, memory, tools, routine, screen, git, webhook, computer
+
+## Wiring sketch
+
+```ts
+// shared/bot-avatar.ts
+avatarVariants?: Partial<Record<CursorState, string>>;
+
+// player: anticipate → enter → hold loop → return → idle_loop
+// optional: layer blink.gif on any hold
 ```
 
-## Adding a bot skin
+## Roadmap (not in this release)
+- SVG recolorable glyphs
+- 960×960 retina
+- Body color variants (blue/green/purple/red)
+- enter/return for every new emotion (holds + stills first)
 
-1. Copy `skins/default` → `skins/<botId>`
-2. Keep identical filenames
-3. Recolor/redesign art (480×480, transparent)
-4. Register in `manifest.json` → `skins`
-5. Seat config: `{ "tvFaceSkin": "<botId>" }`
-
-## Specs
-
-- 480×480, 12 fps, silent transparent GIF + PNG
-- Flat cartoon TV-head, cyan neon icons, head still
-- No extra half-smile flash on return
-
-**Drive:** [TV-Face folder](https://drive.google.com/drive/folders/18yY5nLXou1tmCmlBjN_SXcFWPUTxQ83C)
+## Drive
+https://drive.google.com/drive/folders/18yY5nLXou1tmCmlBjN_SXcFWPUTxQ83C
