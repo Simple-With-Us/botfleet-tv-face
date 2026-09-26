@@ -1,90 +1,65 @@
-# BotFleet TV-Face Expression Pack
+# BotFleet TV-Face Framework v2
 
-**Created:** 2026-09-26  
-**Updated:** transparent backgrounds  
-**Style:** Flat cartoon orange TV-head robot, **transparent background**, cyan neon face icons, head completely still.  
-**Format:** Silent animated GIFs (480×480, 12 fps, ~2.5–3 s, loop) + transparent PNG stills.
+**Updated:** 2026-09-26  
+**Transparent backgrounds:** yes  
+**Clips:** enter · hold · return for **all 13** expressions
 
-## Resting Face
-- `stills/resting.png` — slightly bigger horizontal cyan eyes + very slight smile.  
-- Use as the default / idle state.
+## Multi-bot design
 
-## Expression Sets (modular clips)
+One player, many skins.  Each BotFleet seat mounts `TVFace` / `TVFaceBoard` with a skin path (`skins/<botId>/`).  Expression IDs and event names stay identical so software does not change when you add a new bot look.
 
-Each expression has:
-1. **enter** — smooth transition *from resting → expression*
-2. **hold** — expression paused with subtle neon pulse on the icons
-3. **return** — smooth transition *from expression → resting*
-
-### Original 8 (hold + return)
-| Name | Meaning |
-|------|---------|
-| fleet | Multi-agent / fleet coordination |
-| crash | Error / crash recovery |
-| memory | Memory / storage access |
-| tools | Tools / tool use |
-| routine | Routine / scheduled job |
-| screen | Screen / UI focus |
-| git | Git commit (singular) |
-| webhook | Webhook send (singular) |
-
-### New 5 (full enter + hold + return)
-| Name | Meaning |
-|------|---------|
-| computer | Using a computer |
-| listening | Listening to others |
-| thinking | Thinking / reasoning |
-| typing | Typing / writing code |
-| speaking | Speaking / explaining |
-
-## How BotFleet software should use these
-
-### State machine
-```
-idle (resting)
-  → play enter_GIF
-  → loop hold_GIF while action active
-  → play return_GIF
-  → idle
-```
-
-### Event mapping examples
-- `agent.thinking` → thinking
-- `agent.listening` → listening
-- `agent.typing` / code.write → typing
-- `agent.speaking` / TTS → speaking
-- `agent.using_computer` → computer
-- `git.commit` → git
-- `webhook.send` → webhook
-- fleet coordination → fleet
-- error → crash
-
-### Simple player (pseudo)
-```js
-class TVFace {
-  constructor(el) { this.el = el; this.current = 'resting'; }
-  show(name) {
-    if (this.current === name) return;
-    this.el.src = `gifs/${name}_hold.gif`;
-    this.current = name;
-  }
-  async toIdle() {
-    if (this.current === 'resting') return;
-    this.el.src = 'stills/resting.png';
-    this.current = 'resting';
-  }
-}
-```
-
-## Files layout
 ```
 TV-Face/
-  stills/   # transparent PNGs
-  gifs/     # transparent animated GIFs (31 clips)
-  docs/     # this README
+  framework/
+    manifest.json
+    tvface-player.js      # TVFace + TVFaceBoard
+    bot-skin-template.json
+  skins/default/          # Orange TV-Head (canonical)
+    stills/*.png
+    gifs/*_{enter,hold,return}.gif
+  docs/
 ```
 
-All GIFs are silent with transparent backgrounds for clean UI compositing.
+## Expressions (complete)
 
-**Google Drive:** folder [TV-Face](https://drive.google.com/drive/folders/18yY5nLXou1tmCmlBjN_SXcFWPUTxQ83C)  
-**This repo:** docs + future releases of the binary pack.
+fleet · crash · memory · tools · routine · screen · git · webhook · computer · listening · thinking · typing · speaking
+
+## State machine
+
+```
+idle → enter → hold (loop) → return → idle
+```
+
+## Quick usage
+
+```js
+import { TVFaceBoard } from './framework/tvface-player.js';
+import manifest from './framework/manifest.json';
+
+const board = new TVFaceBoard({
+  skinRoot: '/assets/TV-Face/skins',
+  defaultSkin: 'default',
+  manifest,
+});
+board.mount('seat-ops', document.getElementById('face-ops'));
+board.onEvent('seat-ops', 'agent.thinking');
+board.show('seat-ops', 'typing');
+board.toIdle('seat-ops');
+// board.setSkin('seat-ops', 'blue-bot'); // another bot skin
+```
+
+## Adding a bot skin
+
+1. Copy `skins/default` → `skins/<botId>`
+2. Keep identical filenames
+3. Recolor/redesign art (480×480, transparent)
+4. Register in `manifest.json` → `skins`
+5. Seat config: `{ "tvFaceSkin": "<botId>" }`
+
+## Specs
+
+- 480×480, 12 fps, silent transparent GIF + PNG
+- Flat cartoon TV-head, cyan neon icons, head still
+- No extra half-smile flash on return
+
+**Drive:** [TV-Face folder](https://drive.google.com/drive/folders/18yY5nLXou1tmCmlBjN_SXcFWPUTxQ83C)
