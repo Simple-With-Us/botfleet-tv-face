@@ -1,62 +1,19 @@
 {
   "name": "BotFleet TV-Face Framework",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "updated": "2026-09-26",
-  "description": "Modular transparent TV-face expression pack for multi-bot BotFleet UIs.",
-  "defaults": {
-    "idle": "resting",
-    "fps": 12,
-    "size": 480,
-    "format": "image/gif",
-    "transparent": true,
-    "silent": true
-  },
-  "resting": {
-    "still": "stills/resting.png"
-  },
-  "expressions": {
-    "fleet": { "enter": "gifs/fleet_enter.gif", "hold": "gifs/fleet_hold.gif", "return": "gifs/fleet_return.gif", "still": "stills/fleet.png", "meaning": "Multi-agent / fleet coordination" },
-    "crash": { "enter": "gifs/crash_enter.gif", "hold": "gifs/crash_hold.gif", "return": "gifs/crash_return.gif", "still": "stills/crash.png", "meaning": "Error / crash recovery" },
-    "memory": { "enter": "gifs/memory_enter.gif", "hold": "gifs/memory_hold.gif", "return": "gifs/memory_return.gif", "still": "stills/memory.png", "meaning": "Memory / storage access" },
-    "tools": { "enter": "gifs/tools_enter.gif", "hold": "gifs/tools_hold.gif", "return": "gifs/tools_return.gif", "still": "stills/tools.png", "meaning": "Tools / tool use" },
-    "routine": { "enter": "gifs/routine_enter.gif", "hold": "gifs/routine_hold.gif", "return": "gifs/routine_return.gif", "still": "stills/routine.png", "meaning": "Routine / scheduled job" },
-    "screen": { "enter": "gifs/screen_enter.gif", "hold": "gifs/screen_hold.gif", "return": "gifs/screen_return.gif", "still": "stills/screen.png", "meaning": "Screen / UI focus" },
-    "git": { "enter": "gifs/git_enter.gif", "hold": "gifs/git_hold.gif", "return": "gifs/git_return.gif", "still": "stills/git.png", "meaning": "Git commit" },
-    "webhook": { "enter": "gifs/webhook_enter.gif", "hold": "gifs/webhook_hold.gif", "return": "gifs/webhook_return.gif", "still": "stills/webhook.png", "meaning": "Webhook send" },
-    "computer": { "enter": "gifs/computer_enter.gif", "hold": "gifs/computer_hold.gif", "return": "gifs/computer_return.gif", "still": "stills/computer.png", "meaning": "Using a computer / desktop" },
-    "listening": { "enter": "gifs/listening_enter.gif", "hold": "gifs/listening_hold.gif", "return": "gifs/listening_return.gif", "still": "stills/listening.png", "meaning": "Listening to others" },
-    "thinking": { "enter": "gifs/thinking_enter.gif", "hold": "gifs/thinking_hold.gif", "return": "gifs/thinking_return.gif", "still": "stills/thinking.png", "meaning": "Thinking / reasoning" },
-    "typing": { "enter": "gifs/typing_enter.gif", "hold": "gifs/typing_hold.gif", "return": "gifs/typing_return.gif", "still": "stills/typing.png", "meaning": "Typing / writing code" },
-    "speaking": { "enter": "gifs/speaking_enter.gif", "hold": "gifs/speaking_hold.gif", "return": "gifs/speaking_return.gif", "still": "stills/speaking.png", "meaning": "Speaking / explaining" }
-  },
-  "eventMap": {
-    "agent.idle": "resting",
-    "agent.thinking": "thinking",
-    "agent.listening": "listening",
-    "agent.typing": "typing",
-    "agent.speaking": "speaking",
-    "agent.using_computer": "computer",
-    "agent.error": "crash",
-    "agent.crash": "crash",
-    "tools.invoke": "tools",
-    "git.commit": "git",
-    "webhook.send": "webhook",
-    "fleet.coordinate": "fleet",
-    "memory.read": "memory",
-    "memory.write": "memory",
-    "routine.run": "routine",
-    "screen.focus": "screen",
-    "code.write": "typing",
-    "tts.speak": "speaking",
-    "voice.input": "listening"
-  },
-  "skins": {
-    "default": {
-      "id": "default",
-      "displayName": "Orange TV-Head",
-      "path": "skins/default",
-      "accent": "#00E5FF",
-      "shell": "#E36A2E"
-    }
+  "cursorStateMap": {
+    "sleeping": "sleeping", "waking": "waking", "idle": "resting",
+    "listening": "listening", "thinking": "thinking", "searching": "searching", "working": "working",
+    "happy": "happy", "excited": "excited", "celebrate": "celebrate", "confused": "confused",
+    "curious": "curious", "sad": "sad", "surprised": "curious", "proud": "happy",
+    "playful": "celebrate", "angry": "alerting", "scared": "alerting", "shy": "sad",
+    "bored": "sleeping", "drowsy": "sleeping", "laughing": "happy", "suspicious": "curious",
+    "orbit": "fleet", "radar": "searching", "progress": "loading",
+    "spawning": "waking", "humming": "resting", "loading": "loading",
+    "dictating": "speaking", "writing": "typing", "sending": "sending",
+    "receiving": "receiving", "uploading": "sending", "notifying": "notifying",
+    "alerting": "alerting", "dragging": "working", "bouncing": "excited",
+    "powering-down": "powering_down"
   }
 }
