@@ -1,56 +1,97 @@
-# BotFleet TV-Face Pack v4
+# BotFleet TV-Face Pack v5
 
-Public repo.  Orange TV-bot face system for BotFleet reactive avatars.
-
-## Download
-
-**Release:** https://github.com/jaywedgeworth22/botfleet-tv-face/releases/tag/tv-face-v4
-
-- `TV-Face-gifs.zip` — all animated GIFs (transparent)
-- `TV-Face-stills.zip` — all PNG stills + docs + framework
-- `TV-Face.tar.gz` — full pack
+Production-ready animated TV-head robot emoji / avatar pack for Discord, Telegram, and BotFleet.
 
 ## Style
 
-- Orange TV-head robot, cyan neon visor glyphs only
-- Transparent backgrounds (keyed)
-- 480×480 GIFs, head shell still, glyph-only motion
-- Segments: enter / hold / return + still PNG
+- Glossy TV-head robot shell with **cyan neon visor glyphs only**
+- Black transparent background (keyed)
+- Head shell completely still — glyph-only motion
+- 480×480 GIFs, 73 frames @ 80 ms (~5.8 s loops)
+- Segments: **enter → hold → return** plus utilities
 
-## BotFleet CursorState coverage
+## Download
 
-Maps all 39 states in `framework/manifest.json` → `cursorStateMap`.
+**Google Drive:** https://drive.google.com/drive/folders/18yY5nLXou1tmCmlBjN_SXcFWPUTxQ83C
 
-### Exact / dedicated art
-idle (idle_loop), listening, thinking, working, searching, sleeping, waking,
-happy, excited, celebrate, confused, curious, sad, angry, surprised, scared,
-suspicious, shy, bored, drowsy, proud, playful, laughing, orbit, radar,
-progress, loading, sending, receiving, uploading, notifying, alerting,
-spawning, powering_down, typing (writing), speaking (dictating)
+**GitHub release:** https://github.com/jaywedgeworth22/botfleet-tv-face/releases
 
-### Utility overlays
-- `idle_loop.gif` / `resting_hold.gif` — breathing blink idle
+## Layout
+
+```
+TV-Face/
+  gifs/                 # orange base (all enter/hold/return + utilities)
+  stills/               # PNG stills
+  stills_480/           # 480px stills
+  glyphs/svg/           # recolorable SVG glyph set + shell template
+  skins/
+    orange|blue|green|purple|pink|red|yellow/
+      gifs/
+      stills/
+    skins.json
+  framework/            # manifest + player helpers
+  docs/
+  README.md
+```
+
+## Skins (7)
+
+| Skin    | Hue | Notes              |
+|---------|-----|--------------------|
+| orange  | —   | base (default)     |
+| blue    | 218 | cool fleet blue    |
+| green   | 128 | status green       |
+| purple  | 275 | accent purple      |
+| pink    | 330 | soft pink          |
+| red     | 5   | alert red          |
+| yellow  | 48  | warm yellow        |
+
+Cyan neon glyphs are preserved across all skins.
+
+## Utilities
+
+- `idle_loop.gif` / `resting_hold.gif` — breathing idle
 - `blink.gif` — short blink overlay
 - `anticipate.gif` — pre-enter anticipation
+- `pack_intro.gif` / `pack_outro.gif` — pack intro/outro
 
-### Product-cycle extras (unique to TV-Face)
-fleet, crash, memory, tools, routine, screen, git, webhook, computer
+## SVG glyphs
 
-## Wiring sketch
+`glyphs/svg/*.svg` — pure cyan stroke glyphs (viewBox 0 0 512 512).  
+`_shell_template.svg` — recolorable shell with CSS variables:
+
+```css
+:root {
+  --shell: #E07030;
+  --shell-dark: #C05820;
+  --visor: #0A0A0A;
+  --ear: #D06028;
+  --lens: #4DB8FF;
+  --glyph: #00E5FF;
+}
+```
+
+Drop any glyph into the shell template for static/web use.
+
+## BotFleet CursorState map
+
+See `framework/manifest.json` → `cursorStateMap` (39 states).
+
+Player sketch:
 
 ```ts
-// shared/bot-avatar.ts
-avatarVariants?: Partial<Record<CursorState, string>>;
-
-// player: anticipate → enter → hold loop → return → idle_loop
+// anticipate → enter → hold loop → return → idle_loop
 // optional: layer blink.gif on any hold
 ```
 
-## Roadmap (not in this release)
-- SVG recolorable glyphs
-- 960×960 retina
-- Body color variants (blue/green/purple/red)
-- enter/return for every new emotion (holds + stills first)
+## Specs
 
-## Drive
-https://drive.google.com/drive/folders/18yY5nLXou1tmCmlBjN_SXcFWPUTxQ83C
+- Format: GIF89a, transparency, disposal=2, loop=0
+- Size: 480×480
+- Frames: 73 @ 80 ms
+- Transparency: black keyed
+- Colors: 255 + transparent
+
+## License
+
+Internal BotFleet / Jay Wedgeworth assets.  Contact owner for redistribution.
