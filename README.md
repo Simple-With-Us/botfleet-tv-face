@@ -16,23 +16,22 @@ Production-ready animated TV-head robot emoji / avatar pack for Discord, Telegra
 
 **GitHub release:** https://github.com/jaywedgeworth22/botfleet-tv-face/releases
 
-## Layout
+## What this repository contains
+
+This repo is **metadata only** — 10 files. It does not contain the GIFs, PNG stills, or
+skins themselves. Those ship in the [release archive](https://github.com/jaywedgeworth22/botfleet-tv-face/releases)
+and the [Google Drive folder](https://drive.google.com/drive/folders/18yY5nLXou1tmCmlBjN_SXcFWPUTxQ83C).
 
 ```
-TV-Face/
-  gifs/                 # orange base (all enter/hold/return + utilities)
-  stills/               # PNG stills
-  stills_480/           # 480px stills
-  glyphs/svg/           # recolorable SVG glyph set + shell template
-  skins/
-    orange|blue|green|purple|pink|red|yellow/
-      gifs/
-      stills/
-    skins.json
-  framework/            # manifest + player helpers
+./
+  framework/            # manifest + player helpers (bot-skin-template.json, manifest.json, tvface-player.js)
+  glyphs/svg/           # glyph index and stylesheet; INDEX.md names the 47 glyphs
+  skins.json            # skin metadata — gifsPerSkin / stillsPerSkin describe the archive, not this repo
   docs/
   README.md
 ```
+
+Cloning this repo will not give you the animation assets. Download the release archive for those.
 
 ## Skins (7)
 
