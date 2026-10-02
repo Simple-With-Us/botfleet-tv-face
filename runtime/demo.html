@@ -1,1 +1,200 @@
-PLACEHOLDER2
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>TV-Face v4 — Pure sample(t) SVG Runtime</title>
+  <style>
+    body{margin:0;font-family:system-ui,sans-serif;background:#0b0f14;color:#e5e7eb}
+    /* Sentence gap: keep two ASCII spaces visible in prose */
+    .sub,.ok,footer p,header p,li,h1{white-space:pre-wrap}
+    header{padding:1.2rem 1.5rem;border-bottom:1px solid #1f2937}
+    h1{margin:0 0 .35rem;color:#22d3ee;font-size:1.25rem}
+    .sub{color:#94a3b8;max-width:56rem;font-size:.92rem;line-height:1.55}
+    main{padding:1.25rem;display:grid;gap:1.1rem}
+    .card{background:#111827;border:1px solid #1f2937;border-radius:16px;padding:1rem 1.2rem}
+    .row{display:flex;flex-wrap:wrap;gap:1rem;align-items:center}
+    button,select{background:#1e293b;color:#e2e8f0;border:1px solid #334155;border-radius:8px;padding:.45rem .7rem;font:inherit;cursor:pointer}
+    button:hover,select:hover{border-color:#22d3ee}
+    .checker{background:
+      linear-gradient(45deg,#ccc 25%,transparent 25%),
+      linear-gradient(-45deg,#ccc 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,#ccc 75%),
+      linear-gradient(-45deg,transparent 75%,#ccc 75%);
+      background-size:20px 20px;background-position:0 0,0 10px,10px -10px,-10px 0;
+      background-color:#eee;border-radius:12px;padding:1rem;display:inline-flex;gap:.5rem;flex-wrap:wrap}
+    a{color:#22d3ee}
+    .note{color:#94a3b8;font-size:.85rem;white-space:pre-wrap}
+    code{font-size:.85em;background:#1a1f2a;padding:.1rem .3rem;border-radius:4px}
+    ul.sub{margin:.4rem 0 0;padding-left:1.1rem}
+    .karaoke{margin-top:.75rem;font-size:1.05rem;line-height:1.5;max-width:28rem}
+    .karaoke b{color:#fef08a;font-weight:700}
+  </style>
+  <meta name="apple-itunes-app" content="app-clip-bundle-id=online.fleetlink.Clip, app-clip-display=card"/>
+</head>
+<body>
+<header>
+  <h1>TV-Face v4 — Pure sample(t) Runtime</h1>
+  <p class="sub">Bookend-free rest is the shared keyframe.  Enter and return ease out with quint curves so the shell never overshoots.  Rest life is gaze drift plus a deterministic blink schedule, not a big idle float.</p>
+  <p class="sub">Craft inspiration: <a href="https://bloub.vercel.app" target="_blank" rel="noopener">bloub</a> (MIT) — pure <code>sample(t)</code>, per-state morph duration, freeze-on-chain, eyes that live at rest.  TV-Face keeps its own shell character.  We do not copy the x.ai blob silhouette.</p>
+</header>
+<main>
+  <section class="card">
+    <div class="row">
+      <tv-face id="bot" casing="orange" state="resting" phase="rest" float size="300px"></tv-face>
+      <div>
+        <div class="row" style="gap:.45rem">
+          <select id="state">
+            <option>resting</option>
+            <option>thinking</option>
+            <option>working</option>
+            <option>waiting</option>
+            <option>listening</option>
+            <option>speaking</option>
+            <option>celebrate</option>
+            <option>wink</option>
+            <option>alert</option>
+            <option>notify</option>
+            <option>error</option>
+            <option>sleeping</option>
+          </select>
+          <select id="casing">
+            <option>orange</option><option>blue</option><option>purple</option>
+            <option>pink</option><option>green</option><option>cyan</option>
+            <option>white</option><option>black</option><option>red</option>
+            <option>yellow</option><option>teal</option><option>coral</option>
+          </select>
+          <button id="play" type="button">Play</button>
+          <button id="stop" type="button">Rest</button>
+          <button id="talk" type="button">Talk</button>
+          <button id="quiet" type="button">Quiet</button>
+          <button id="chain" type="button">Chain think→work→rest</button>
+          <button id="cycle" type="button">Cycle expressions</button>
+        </div>
+        <p class="note" id="log">phase: rest</p>
+        <p class="karaoke" id="karaoke" hidden>
+          <span id="kt">Hello fleet.  The mouth is a speech channel.</span>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <p class="sub" style="margin-top:0">Frozen board — each tile is a live <code>sample(t)</code> instance.  Watch gaze and blink at rest.</p>
+    <div class="checker" id="board"></div>
+  </section>
+
+  <section class="card">
+    <h2 style="margin:0 0 .5rem;font-size:1rem;color:#22d3ee;white-space:pre-wrap">What we took from bloub</h2>
+    <ul class="sub">
+      <li><strong>Pure sample(t).</strong>  Pose math does not call <code>Date.now()</code> inside the pose itself.  Pause, resume, and tests can re-read the same time.</li>
+      <li><strong>Ease-out quint morphs.</strong>  Enter/return blend pose fields.  The body never overshoots.</li>
+      <li><strong>Per-state morph duration.</strong>  Wink and alert snap (~0.30s).  Sleep eases longer (~0.55s).</li>
+      <li><strong>Freeze mid-fade.</strong>  Chaining states freezes the composite frame and blends from it, so there is no jump.</li>
+      <li><strong>Rest = gaze + blink.</strong>  Deterministic blink schedule and loop-noise gaze.  No big floating bob at rest.</li>
+      <li><strong>Speaking is pure too.</strong>  Lip open is a multi-harmonic envelope of absolute time while talking.</li>
+    </ul>
+    <p class="sub">Sources: <a href="https://github.com/jeremy-prt/bloub">jeremy-prt/bloub</a> · notes in <a href="../../docs/CODE-ANIMATION-FEASIBILITY.md">CODE-ANIMATION-FEASIBILITY.md</a> · <a href="../orbbot/demo.html">OrbBot</a> · hub <a href="../../AVATARS.html">AVATARS.html</a></p>
+  </section>
+</main>
+<script src="./tv-face.js"></script>
+<script>
+  const bot = document.getElementById('bot');
+  const log = document.getElementById('log');
+  const karaoke = document.getElementById('karaoke');
+  const kt = document.getElementById('kt');
+  let cycleTimer = null;
+
+  bot.addEventListener('tv-phase', e => {
+    log.textContent = 'phase: ' + e.detail.phase + '  |  state: ' + bot.getAttribute('state');
+  });
+
+  document.getElementById('play').onclick = () => {
+    const s = document.getElementById('state').value;
+    if (s === 'resting') bot.stop();
+    else bot.play(s);
+  };
+  document.getElementById('stop').onclick = () => {
+    bot.stopTalking();
+    karaoke.hidden = true;
+    bot.stop();
+  };
+  document.getElementById('casing').onchange = e => bot.setCasing(e.target.value);
+
+  // Karaoke sibling field: bold as words are "spoken" (demo clock)
+  document.getElementById('talk').onclick = async () => {
+    const line = 'Hello fleet.  The mouth is a speech channel.';
+    const words = line.split(/(\s+)/);
+    karaoke.hidden = false;
+    bot.startTalking(4.5);
+    if (bot.getAttribute('state') === 'resting') bot.play('speaking');
+    let i = 0;
+    kt.innerHTML = '';
+    const step = () => {
+      if (i >= words.length) {
+        bot.stopTalking();
+        setTimeout(() => { karaoke.hidden = true; bot.stop(); }, 400);
+        return;
+      }
+      const done = words.slice(0, i + 1).map(w =>
+        /^\s+$/.test(w) ? w : '<b>' + w + '</b>'
+      ).join('') + words.slice(i + 1).join('');
+      kt.innerHTML = done;
+      i += 1;
+      setTimeout(step, 280);
+    };
+    step();
+  };
+  document.getElementById('quiet').onclick = () => {
+    bot.stopTalking();
+    karaoke.hidden = true;
+  };
+
+  document.getElementById('chain').onclick = async () => {
+    await bot.play('thinking');
+    await new Promise(r => setTimeout(r, 700));
+    await bot.play('working');
+    await new Promise(r => setTimeout(r, 700));
+    await bot.play('listening');
+    await new Promise(r => setTimeout(r, 600));
+    await bot.stop();
+  };
+
+  document.getElementById('cycle').onclick = async () => {
+    if (cycleTimer) { clearTimeout(cycleTimer); cycleTimer = null; log.textContent = 'cycle stopped'; return; }
+    const seq = ['thinking','listening','wink','working','alert','notify','celebrate','speaking','sleeping'];
+    let i = 0;
+    const next = async () => {
+      const s = seq[i % seq.length];
+      i += 1;
+      document.getElementById('state').value = s;
+      if (s === 'speaking') bot.startTalking(4);
+      else bot.stopTalking();
+      await bot.play(s);
+      cycleTimer = setTimeout(async () => {
+        if (s === 'speaking') bot.stopTalking();
+        next();
+      }, 1400);
+    };
+    next();
+  };
+
+  const board = document.getElementById('board');
+  const tiles = [
+    ['orange','resting'],['blue','thinking'],['purple','waiting'],
+    ['pink','celebrate'],['green','working'],['black','sleeping'],
+    ['white','error'],['cyan','listening'],['coral','wink'],['teal','alert'],
+  ];
+  for (const [c,s] of tiles) {
+    const el = document.createElement('tv-face');
+    el.setAttribute('casing', c);
+    el.setAttribute('state', s);
+    el.setAttribute('phase', s === 'resting' ? 'rest' : 'hold');
+    el.setAttribute('size', '130px');
+    el.setAttribute('float', '');
+    board.appendChild(el);
+    if (s !== 'resting') el.play(s);
+  }
+</script>
+</body>
+</html>
