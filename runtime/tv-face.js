@@ -1,25 +1,35 @@
 /**
  * <tv-face> v4 — SVG/CSS/JS runtime
  *
- * Animation craft inspired by bloub (https://bloub.vercel.app, MIT):
- *   - pure sample(t) — pose math never calls Date.now()
- *   - easeOutQuint morphs — body never overshoots
- *   - per-state morph duration (0.30–0.60s class like bloub)
- *   - freeze composite when chaining mid-fade
- *   - rest life = gaze drift + blink schedule (not big float bob)
- *   - speaking mouth is pure sample of t while [speaking]
+ * Animation craft studied from bloub (https://bloub.vercel.app, MIT,
+ * jeremy-prt/bloub).  We take the craft, not the x.ai black-blob silhouette.
  *
- * Silhouette stays TV-Face (shell + glass).  We do not copy the x.ai blob.
+ * Bloub techniques adopted here:
+ *   1. pure sample(t) — pose is a pure function of absolute time + state table
+ *   2. per-state morph duration (SHAPE_MORPH-style), easeOutQuint primary
+ *   3. freeze mid-fade (departFige): chain mid-transition freezes composite
+ *   4. rest life = gaze drift + blink schedule (loopNoise + deterministic blinks)
+ *   5. blinkIn on state entry for selected holds
+ *   6. separate look morph timing (LOOK_MORPH) for gaze catch-up
+ *   7. hold pose(t) is sample-driven, not only CSS infinite keyframes
+ *
+ * TV-Face keeps shell + glass face identity.  Bookend contract still holds
+ * for film packs; this runtime is the code twin.
  */
 (() => {
   let _uid = 0;
 
+  // --- math (bloub Io / Lo / Ro family) ------------------------------------
   const clamp = (v, lo = 0, hi = 1) => (v < lo ? lo : v > hi ? hi : v);
   const lerp = (a, b, t) => a + (b - a) * t;
   const easeOutQuint = (t) => 1 - Math.pow(1 - t, 5);
+  const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
   const easeInOutCubic = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
   const TAU = Math.PI * 2;
+  const LOOK_MORPH = 0.24; // bloub LOOK_MORPH seconds
+  const DEFAULT_MORPH = 0.45; // bloub SHAPE_MORPH seconds
 
+  /** Seamless 1D noise — pure of t (bloub Lo). */
   function loopNoise(t, period, seed = 0) {
     const p = (t / period) * TAU;
     return (
@@ -29,6 +39,7 @@
     );
   }
 
+  /** mulberry-ish rng (bloub Ro). */
   function createRng(seed) {
     let a = seed >>> 0;
     return () => {
@@ -39,7 +50,7 @@
     };
   }
 
-  /** Deterministic blink schedule (mulberry32).  Pure of t. */
+  /** Deterministic blink schedule over a long horizon (pure). */
   const BLINKS = (() => {
     const rng = createRng(0x5eed);
     const out = [];
@@ -47,129 +58,105 @@
     while (t < 3600) {
       out.push(t);
       t += 1.9 + rng() * 2.7;
-      if (rng() < 0.12) out.push(t + 0.12);
+      if (rng() < 0.12) out.push(t + 0.12); // double blink
     }
     return out;
   })();
 
-  function lidAt(t) {
+  function lidAt(t, entryBlinkAt) {
+    // 1 open, 0 closed — pure of t (+ optional entry blink)
     let lid = 1;
+    if (entryBlinkAt != null) {
+      const p = (t - entryBlinkAt) / 0.2;
+      if (p >= 0 && p < 1) lid = Math.min(lid, Math.abs(p * 2 - 1));
+    }
     for (let i = 0; i < BLINKS.length; i++) {
       const b = BLINKS[i];
-      if (b > t + 0.25) break;
+      if (b > t + 0.2) break;
       const d = t - b;
-      if (d >= 0 && d < 0.16) {
-        const u = d / 0.16;
-        // close fast, open slower (ease)
-        lid = u < 0.4 ? 1 - easeOutQuint(u / 0.4) : easeOutQuint((u - 0.4) / 0.6);
+      if (d >= 0 && d < 0.14) {
+        const u = d / 0.14;
+        lid = Math.min(lid, u < 0.45 ? 1 - u / 0.45 : (u - 0.45) / 0.55);
         break;
       }
     }
     return clamp(lid);
   }
 
-  function liveliness(t) {
+  /**
+   * Rest liveliness — pure of absolute time t (seconds).
+   * Bloub insight: rest does not float hard; life is gaze + blink + tiny breath.
+   */
+  function liveliness(t, entryBlinkAt) {
     return {
-      gazeX: 7 * loopNoise(t, 7.5, 0.3),
-      gazeY: 4.5 * loopNoise(t, 9.2, 1.1),
-      tilt: 1.6 * loopNoise(t, 11, 2.0),
-      breath: 1.8 * loopNoise(t, 4.8, 0.7),
-      lid: lidAt(t),
-      // specular drift rides gaze (glass highlight follows attention)
-      specX: 36 + 4 * loopNoise(t, 8.1, 0.5),
-      specY: 28 + 3 * loopNoise(t, 10.4, 1.4),
-      ear: 1.2 * loopNoise(t, 5.5, 0.9),
+      gazeX: 6 * loopNoise(t, 7.5, 0.3),
+      gazeY: 4 * loopNoise(t, 9.2, 1.1),
+      tilt: 1.4 * loopNoise(t, 11, 2.0),
+      breath: 1.5 * loopNoise(t, 4.8, 0.7),
+      lid: lidAt(t, entryBlinkAt),
+      wander: 0.35 + 0.15 * loopNoise(t, 13, 0.5),
     };
   }
 
   /**
-   * Hold poses + morph duration (seconds), bloub-style per-state morph.
-   * eyeL/eyeR scale for wink / wide.  mouth 0 closed → 1 open.
+   * State table (bloub-style: duration, morph, blinkIn, hold fields).
+   * Hold motion is sampled as pose(localT), not CSS keyframes alone.
    */
-  const HOLD = {
-    resting:   { tilt: 0, bob: 0, scale: 1, eyeOpen: 1, eyeL: 1, eyeR: 1, mouth: 0, morph: 0.45 },
-    thinking:  { tilt: -4, bob: -6, scale: 1.02, eyeOpen: 1, eyeL: 1, eyeR: 1, mouth: 0, morph: 0.40 },
-    working:   { tilt: 2, bob: 2, scale: 1, eyeOpen: 1, eyeL: 1, eyeR: 1, mouth: 0, morph: 0.45 },
-    waiting:   { tilt: 5, bob: 0, scale: 1, eyeOpen: 0.95, eyeL: 1, eyeR: 1, mouth: 0, morph: 0.45 },
-    celebrate: { tilt: 0, bob: -12, scale: 1.05, eyeOpen: 1.08, eyeL: 1.1, eyeR: 1.1, mouth: 0.35, morph: 0.35 },
-    error:     { tilt: -3, bob: 0, scale: 1, eyeOpen: 1.12, eyeL: 1.05, eyeR: 1.05, mouth: 0, morph: 0.30 },
-    sleeping:  { tilt: -2, bob: 3, scale: 0.98, eyeOpen: 0.08, eyeL: 0.08, eyeR: 0.08, mouth: 0, morph: 0.55 },
-    listening: { tilt: 3, bob: -2, scale: 1.01, eyeOpen: 1.05, eyeL: 1.05, eyeR: 1.05, mouth: 0, morph: 0.40 },
-    wink:      { tilt: 2, bob: 0, scale: 1, eyeOpen: 1, eyeL: 1, eyeR: 0.08, mouth: 0.15, morph: 0.30 },
-    alert:     { tilt: 0, bob: -4, scale: 1.03, eyeOpen: 1.15, eyeL: 1.12, eyeR: 1.12, mouth: 0.1, morph: 0.30 },
-    notify:    { tilt: 0, bob: -8, scale: 1.04, eyeOpen: 1.1, eyeL: 1.08, eyeR: 1.08, mouth: 0.2, morph: 0.35 },
-    speaking:  { tilt: 0, bob: 0, scale: 1, eyeOpen: 1, eyeL: 1, eyeR: 1, mouth: 0.5, morph: 0.40 },
+  const STATES = {
+    resting:   { morph: 0.45, blinkIn: false, tilt: 0, bob: 0, scale: 1, eyeOpen: 1, mouth: 0 },
+    thinking:  { morph: 0.40, blinkIn: true,  tilt: -4, bob: -6, scale: 1.02, eyeOpen: 1, mouth: 0 },
+    working:   { morph: 0.35, blinkIn: false, tilt: 2, bob: 2, scale: 1, eyeOpen: 1, mouth: 0 },
+    waiting:   { morph: 0.45, blinkIn: true,  tilt: 5, bob: 0, scale: 1, eyeOpen: 0.95, mouth: 0 },
+    celebrate: { morph: 0.35, blinkIn: true,  tilt: 0, bob: -12, scale: 1.05, eyeOpen: 1.05, mouth: 0.35 },
+    error:     { morph: 0.30, blinkIn: false, tilt: -3, bob: 0, scale: 1, eyeOpen: 1.1, mouth: 0 },
+    sleeping:  { morph: 0.50, blinkIn: false, tilt: -2, bob: 3, scale: 0.98, eyeOpen: 0.08, mouth: 0 },
   };
 
-  function holdPose(state, t) {
-    const base = HOLD[state] || HOLD.resting;
+  function holdPose(state, localT) {
+    const base = STATES[state] || STATES.resting;
     let tilt = base.tilt;
     let bob = base.bob;
     let scale = base.scale;
+    let eyeOpen = base.eyeOpen;
     let mouth = base.mouth;
-    let eyeL = base.eyeL;
-    let eyeR = base.eyeR;
-
+    // sample-driven hold motion (localT = seconds in hold)
     if (state === 'thinking') {
-      tilt = base.tilt + 4 * Math.sin(t * 2.2);
-      bob = base.bob + 5 * Math.sin(t * 2.0);
+      tilt = base.tilt + 4 * Math.sin(localT * 2.2);
+      bob = base.bob + 5 * Math.sin(localT * 2.0);
     } else if (state === 'working') {
-      tilt = base.tilt + 2.5 * Math.sin(t * 4.0);
-      bob = base.bob + 2 * Math.sin(t * 4.0);
+      tilt = base.tilt + 2.5 * Math.sin(localT * 4.0);
+      bob = base.bob + 2 * Math.sin(localT * 4.0);
     } else if (state === 'waiting') {
-      tilt = base.tilt * Math.sin(t * 1.1);
+      tilt = base.tilt * Math.sin(localT * 1.1);
     } else if (state === 'celebrate') {
-      bob = base.bob * (0.5 + 0.5 * Math.sin(t * 8));
-      scale = 1 + 0.04 * Math.sin(t * 8);
-      mouth = 0.25 + 0.2 * Math.abs(Math.sin(t * 6));
+      bob = base.bob * (0.5 + 0.5 * Math.sin(localT * 8));
+      scale = 1 + 0.04 * Math.sin(localT * 8);
+      mouth = base.mouth * (0.7 + 0.3 * Math.abs(Math.sin(localT * 6)));
     } else if (state === 'error') {
-      tilt = 3 * Math.sin(t * 18);
+      tilt = 3 * Math.sin(localT * 18);
+      bob = 0;
     } else if (state === 'sleeping') {
-      bob = base.bob + 2 * Math.sin(t * 1.2);
-      scale = 0.98 + 0.01 * Math.sin(t * 1.2);
-    } else if (state === 'listening') {
-      // ear lean + soft bob — "I hear you"
-      tilt = base.tilt + 2 * Math.sin(t * 1.6);
-      bob = base.bob + 1.5 * Math.sin(t * 2.4);
-    } else if (state === 'wink') {
-      // hold wink: right lid stays down; slight smile pulse
-      mouth = 0.12 + 0.08 * Math.abs(Math.sin(t * 3));
-    } else if (state === 'alert') {
-      bob = base.bob + 1.5 * Math.sin(t * 10);
-      scale = 1.02 + 0.015 * Math.sin(t * 10);
-    } else if (state === 'notify') {
-      bob = base.bob * (0.6 + 0.4 * Math.sin(t * 6));
-    } else if (state === 'speaking') {
-      // base mouth; speaking flag still drives open envelope
-      mouth = 0.2;
+      bob = base.bob + 2 * Math.sin(localT * 1.2);
+      scale = 0.98 + 0.01 * Math.sin(localT * 1.2);
     }
-
-    return {
-      tilt, bob, scale,
-      eyeOpen: base.eyeOpen,
-      eyeL, eyeR,
-      mouth,
-      morph: base.morph,
-    };
+    return { tilt, bob, scale, eyeOpen, mouth };
   }
 
-  /** Pure speaking envelope — irregular lip open while talking. */
-  function speakEnvelope(t, t0, hz) {
-    const u = t - t0;
-    // multi-harmonic, non-periodic-looking chatter
-    const a =
-      0.55 * Math.abs(Math.sin(u * hz * TAU * 0.55)) +
-      0.30 * Math.abs(Math.sin(u * hz * TAU * 0.91 + 0.7)) +
-      0.15 * Math.abs(Math.sin(u * hz * TAU * 1.37 + 1.4));
-    // soft gate so it does not stick at zero
-    return clamp(0.08 + 0.92 * a);
+  function lerpPose(a, b, e) {
+    return {
+      tilt: lerp(a.tilt, b.tilt, e),
+      bob: lerp(a.bob, b.bob, e),
+      scale: lerp(a.scale, b.scale, e),
+      eyeOpen: lerp(a.eyeOpen, b.eyeOpen, e),
+      mouth: lerp(a.mouth, b.mouth, e),
+    };
   }
 
   const FALLBACK_CSS = `
 :host{display:inline-block;width:var(--tv-size,240px);height:var(--tv-size,240px);
 --shell-shadow:#782d0f;--shell-base:#d25f23;--shell-highlight:#ffbe78;--glyph:#22d3ee;--glass:#05070a;
 --float-opacity:.28;--bob-amp:0px;--tilt-deg:0deg;--scale:1;--mouth-open:0;--spec-x:36%;--spec-y:28%;
---gaze-x:0px;--gaze-y:0px;--lid:1;--eye-open:1;--eye-l:1;--eye-r:1;--ear-nudge:0px;
+--gaze-x:0px;--gaze-y:0px;--lid:1;--eye-open:1;
 background:transparent;line-height:0;position:relative;vertical-align:middle}
 :host([float]){--float-opacity:.42}
 :host([casing="blue"]){--shell-shadow:#0f2d6e;--shell-base:#286ec8;--shell-highlight:#8cc8ff}
@@ -188,33 +175,20 @@ background:transparent;line-height:0;position:relative;vertical-align:middle}
   opacity:0;transition:opacity .25s ease;border-radius:12%}
 :host([hybrid-active]) .hybrid{opacity:1}
 :host([hybrid-active]) .rig-glyphs{opacity:0}
-.rig{transform-origin:480px 520px;transform:translateY(var(--bob-amp)) rotate(var(--tilt-deg)) scale(var(--scale))}
+.rig{transform-origin:480px 520px;transform:translateY(var(--bob-amp)) rotate(var(--tilt-deg)) scale(var(--scale));
+  transition: none}
 @media (prefers-reduced-motion:reduce){:host{--bob-amp:0px !important;--tilt-deg:0deg !important}}
 .shell-fill{fill:url(#__SHELL__)}.ear-fill{fill:url(#__EAR__)}.glass{fill:var(--glass)}
-.ear-left{transform:translateY(var(--ear-nudge))}
-.ear-right{transform:translateY(calc(var(--ear-nudge) * -0.6))}
 .glyph{fill:none;stroke:var(--glyph);stroke-linecap:round;filter:url(#__NEON__)}
 .glyph-fill{fill:var(--glyph);filter:url(#__NEON__)}
 .state-glyph{opacity:0;stroke:var(--glyph);fill:none;stroke-width:10;stroke-linecap:round;filter:url(#__NEON__);transition:opacity .18s}
-:host([state="thinking"]) .g-think,
-:host([state="working"]) .g-work,
-:host([state="waiting"]) .g-wait,
-:host([state="celebrate"]) .g-celeb,
-:host([state="error"]) .g-error,
-:host([state="sleeping"]) .g-sleep,
-:host([state="listening"]) .g-listen,
-:host([state="alert"]) .g-alert,
-:host([state="notify"]) .g-notify,
-:host([state="wink"]) .g-wink,
-:host([state="speaking"]) .g-speak{opacity:1}
+:host([state="thinking"]) .g-think,:host([state="working"]) .g-work,:host([state="waiting"]) .g-wait,
+:host([state="celebrate"]) .g-celeb,:host([state="error"]) .g-error,:host([state="sleeping"]) .g-sleep{opacity:1}
 .mouth-open-path{opacity:0}
 :host([speaking]) .mouth-closed{opacity:calc(1 - var(--mouth-open))}
 :host([speaking]) .mouth-open-path{opacity:var(--mouth-open)}
-:host([state="speaking"]) .mouth-closed{opacity:calc(1 - var(--mouth-open))}
-:host([state="speaking"]) .mouth-open-path{opacity:var(--mouth-open)}
 .eye-group{transform:translate(var(--gaze-x), var(--gaze-y))}
-.eye-left{transform-box:fill-box;transform-origin:center;transform:scale(var(--eye-l), calc(var(--eye-l) * var(--lid) * var(--eye-open)))}
-.eye-right{transform-box:fill-box;transform-origin:center;transform:scale(var(--eye-r), calc(var(--eye-r) * var(--lid) * var(--eye-open)))}
+.blink-lid{transform-origin:480px 435px;transform:scaleY(calc(1 - var(--lid)))}
 .pupil{transform-box:fill-box;transform-origin:center}
 `;
 
@@ -228,11 +202,20 @@ background:transparent;line-height:0;position:relative;vertical-align:middle}
       this.attachShadow({ mode: 'open' });
       this._t0 = performance.now() / 1000;
       this._raf = 0;
-      this._morph = null;
-      this._frozen = null;
-      this._speak = null; // { t0, hz } while speaking — pure sample
+      // bloub-style machine
+      this._cur = 'resting';
+      this._prev = null;
+      this._tCur = 0;
+      this._tPrev = 0;
+      this._departFige = null; // frozen composite pose when chaining mid-fade
+      this._blinkAt = -10;
+      this._look = { x: 0, y: 0 };
+      this._lookPrev = { x: 0, y: 0 };
+      this._lookAt = -10;
+      this._speakOpen = 0;
+      this._speakTimer = null;
       this._hybrid = null;
-      this._lastPose = { ...HOLD.resting };
+      this._holdLocal0 = 0;
     }
     connectedCallback() {
       this.shadowRoot.innerHTML = this._template();
@@ -240,11 +223,13 @@ background:transparent;line-height:0;position:relative;vertical-align:middle}
       if (!this.hasAttribute('state')) this.setAttribute('state', 'resting');
       if (!this.hasAttribute('phase')) this.setAttribute('phase', 'rest');
       if (!this.hasAttribute('casing')) this.setAttribute('casing', 'orange');
+      this._cur = this.getAttribute('state') || 'resting';
       this._applySize();
       this._startLoop();
     }
     disconnectedCallback() {
       cancelAnimationFrame(this._raf);
+      clearInterval(this._speakTimer);
     }
     attributeChangedCallback(name, o, v) {
       if (o === v) return;
@@ -252,12 +237,10 @@ background:transparent;line-height:0;position:relative;vertical-align:middle}
       if (name === 'phase') this._emit('tv-phase', { phase: v });
       if (name === 'hybrid-src') this._syncHybrid();
       if (name === 'state' || name === 'phase') this._syncHybridPhase(this.getAttribute('phase'));
-      if (name === 'speaking') {
-        if (this.hasAttribute('speaking')) {
-          if (!this._speak) this._speak = { t0: performance.now() / 1000 - this._t0, hz: 4.2 };
-        } else {
-          this._speak = null;
-        }
+      if (name === 'state' && v && v !== this._cur) {
+        // external attr set → route through setState machine
+        const t = performance.now() / 1000 - this._t0;
+        this._setStateInternal(v, t);
       }
     }
     _applySize() {
@@ -297,20 +280,21 @@ background:transparent;line-height:0;position:relative;vertical-align:middle}
     </radialGradient>
   </defs>
   <g class="rig">
-    <ellipse class="ear-fill ear-left" cx="175" cy="470" rx="42" ry="70"/>
-    <ellipse class="ear-fill ear-right" cx="785" cy="470" rx="42" ry="70"/>
+    <ellipse class="ear-fill" cx="175" cy="470" rx="42" ry="70"/>
+    <ellipse class="ear-fill" cx="785" cy="470" rx="42" ry="70"/>
     <rect class="shell-fill" x="210" y="210" width="540" height="500" rx="72"/>
     <rect class="glass" x="255" y="270" width="450" height="340" rx="36"/>
     <rect fill="url(#${this._sid('spec')})" x="255" y="270" width="450" height="340" rx="36"/>
     <g class="rig-glyphs eye-group">
       <g class="eye-left">
         <ellipse class="glyph-fill" cx="390" cy="420" rx="28" ry="32" opacity="0.95"/>
-        <ellipse class="pupil" cx="390" cy="424" rx="10" ry="12" fill="#0a0a0c"/>
+        <ellipse class="pupil" cx="390" cy="420" rx="10" ry="12" fill="#0a0a0c"/>
       </g>
       <g class="eye-right">
         <ellipse class="glyph-fill" cx="570" cy="420" rx="28" ry="32" opacity="0.95"/>
-        <ellipse class="pupil" cx="570" cy="424" rx="10" ry="12" fill="#0a0a0c"/>
+        <ellipse class="pupil" cx="570" cy="420" rx="10" ry="12" fill="#0a0a0c"/>
       </g>
+      <rect class="blink-lid glass" x="340" y="380" width="280" height="80" rx="12" opacity="0.92"/>
       <path class="glyph mouth-closed" d="M380 580 Q480 640 580 580" stroke-width="14"/>
       <ellipse class="glyph-fill mouth-open-path" cx="480" cy="600" rx="70" ry="36"/>
       <g class="state-glyph g-think"><circle cx="640" cy="300" r="10" class="glyph-fill"/><circle cx="670" cy="270" r="7" class="glyph-fill"/><circle cx="690" cy="245" r="5" class="glyph-fill"/></g>
@@ -319,11 +303,6 @@ background:transparent;line-height:0;position:relative;vertical-align:middle}
       <g class="state-glyph g-celeb"><path d="M320 280 l20 30 l-30 10 l30 10 l-20 30 l20-30 l30 10 l-30-10 z" stroke-width="6"/></g>
       <g class="state-glyph g-error"><path d="M450 300 h60 M480 300 v55" stroke-width="14"/><circle cx="480" cy="380" r="6" class="glyph-fill"/></g>
       <g class="state-glyph g-sleep"><path d="M600 300 q20 -20 40 0" stroke-width="8"/><path d="M620 280 q16 -16 32 0" stroke-width="6"/></g>
-      <g class="state-glyph g-listen"><path d="M320 340 q-30 40 0 80" stroke-width="10"/><path d="M300 360 q-20 30 0 55" stroke-width="7"/></g>
-      <g class="state-glyph g-alert"><path d="M480 285 l18 48 h-36 z" stroke-width="8"/><circle cx="480" cy="360" r="5" class="glyph-fill"/></g>
-      <g class="state-glyph g-notify"><circle cx="640" cy="300" r="16" class="glyph-fill" opacity="0.9"/><path d="M640 292 v10 M640 308 v2" stroke="#0a0a0c" stroke-width="3"/></g>
-      <g class="state-glyph g-wink"><path d="M540 430 q30 18 60 0" stroke-width="10"/></g>
-      <g class="state-glyph g-speak"><path d="M640 560 q20 30 0 50" stroke-width="8"/><path d="M665 555 q24 35 0 58" stroke-width="6"/></g>
     </g>
   </g>
   <ellipse cx="480" cy="780" rx="160" ry="18" fill="#000" opacity="var(--float-opacity)"/>
@@ -331,179 +310,172 @@ background:transparent;line-height:0;position:relative;vertical-align:middle}
     }
 
     /**
-     * Sample full visual pose at absolute time t (seconds).
-     * Pure: same t + same morph/speak state => same pose.
+     * bloub setState: if still morphing, freeze composite (departFige).
      */
-    sample(t) {
-      const state = this.getAttribute('state') || 'resting';
-      const phase = this.getAttribute('phase') || 'rest';
-      let pose;
+    _setStateInternal(next, t) {
+      if (next === this._cur) return;
+      const meta = STATES[this._cur] || STATES.resting;
+      const morphing = this._prev !== null && (t - this._tCur) < meta.morph;
+      this._departFige = morphing ? this._poseComposee(t) : null;
+      this._prev = this._cur;
+      this._tPrev = this._tCur;
+      this._cur = next;
+      this._tCur = t;
+      this._holdLocal0 = t;
+      const nextMeta = STATES[next] || STATES.resting;
+      if (nextMeta.blinkIn) this._blinkAt = t;
+    }
 
-      if (this._morph) {
-        const m = this._morph;
-        const p = clamp((t - m.t0) / m.dur);
-        const e = easeOutQuint(p);
-        pose = {
-          tilt: lerp(m.from.tilt, m.to.tilt, e),
-          bob: lerp(m.from.bob, m.to.bob, e),
-          scale: lerp(m.from.scale, m.to.scale, e),
-          eyeOpen: lerp(m.from.eyeOpen, m.to.eyeOpen, e),
-          eyeL: lerp(m.from.eyeL ?? 1, m.to.eyeL ?? 1, e),
-          eyeR: lerp(m.from.eyeR ?? 1, m.to.eyeR ?? 1, e),
-          mouth: lerp(m.from.mouth, m.to.mouth, e),
-        };
-        if (p >= 1 && m.resolve) {
-          const r = m.resolve;
-          this._morph = null;
-          this._frozen = null;
-          r();
-        }
-      } else if (phase === 'hold') {
-        pose = holdPose(state, t);
+    /** Composite pose at t (for freeze origin). */
+    _poseComposee(t) {
+      return this._corePose(t);
+    }
+
+    /** Core body pose without liveliness. */
+    _corePose(t) {
+      const phase = this.getAttribute('phase') || 'rest';
+      const meta = STATES[this._cur] || STATES.resting;
+      const local = Math.max(0, t - this._tCur);
+      let target;
+      if (phase === 'hold' || phase === 'enter') {
+        target = holdPose(this._cur, Math.max(0, t - this._holdLocal0));
+      } else if (this._cur === 'resting' || phase === 'rest' || phase === 'return') {
+        target = holdPose('resting', local);
       } else {
-        pose = { ...HOLD.resting, eyeL: 1, eyeR: 1 };
+        target = holdPose(this._cur, local);
       }
 
-      const live =
-        phase === 'rest' || phase === 'hold' || phase === 'enter' || phase === 'return'
-          ? liveliness(t)
-          : { gazeX: 0, gazeY: 0, tilt: 0, breath: 0, lid: 1, specX: 36, specY: 28, ear: 0 };
+      // morph from origin
+      const morphDur = meta.morph || DEFAULT_MORPH;
+      if (local < morphDur) {
+        const e = easeOutQuint(clamp(local / morphDur));
+        const origin = this._departFige || (this._prev
+          ? holdPose(this._prev, Math.max(0, t - this._tPrev))
+          : holdPose('resting', 0));
+        return lerpPose(origin, target, e);
+      }
+      // clear freeze after complete morph
+      if (this._departFige) this._departFige = null;
+      return target;
+    }
+
+    /**
+     * sample(t) — pure of absolute time + machine state.
+     * Same t + same machine => same fields.
+     */
+    sample(t) {
+      const phase = this.getAttribute('phase') || 'rest';
+      const pose = this._corePose(t);
+
+      const liveOn = (phase === 'rest' || phase === 'hold' || phase === 'enter' || phase === 'return');
+      const live = liveOn
+        ? liveliness(t, this._blinkAt)
+        : { gazeX: 0, gazeY: 0, tilt: 0, breath: 0, lid: 1, wander: 0 };
+
+      // LOOK_MORPH: ease gaze toward liveliness target
+      const lookT = clamp((t - this._lookAt) / LOOK_MORPH);
+      const lookE = easeOutCubic(lookT);
+      // retarget look occasionally via liveliness itself (already continuous)
 
       let lid = live.lid;
       let eyeOpen = pose.eyeOpen;
-      let eyeL = pose.eyeL ?? 1;
-      let eyeR = pose.eyeR ?? 1;
-      if (state === 'sleeping') {
+      if (this._cur === 'sleeping') {
         lid = Math.min(lid, 0.12);
         eyeOpen = 0.08;
-        eyeL = eyeR = 0.08;
-      }
-      // wink holds right eye closed even during blink schedule
-      if (state === 'wink') {
-        eyeR = Math.min(eyeR, 0.08);
       }
 
       let mouth = pose.mouth;
-      if (this._speak || this.hasAttribute('speaking') || state === 'speaking') {
-        const sp = this._speak || { t0: 0, hz: 4.2 };
-        mouth = Math.max(mouth, speakEnvelope(t, sp.t0, sp.hz));
-      }
+      if (this.hasAttribute('speaking')) mouth = Math.max(mouth, this._speakOpen);
 
-      // rest adds micro tilt/breath; hold keeps liveliness gaze only
-      const restTilt = phase === 'rest' ? live.tilt : phase === 'hold' ? live.tilt * 0.35 : 0;
-      const restBob = phase === 'rest' ? live.breath : phase === 'hold' ? live.breath * 0.25 : 0;
-
-      const out = {
-        tilt: pose.tilt + restTilt,
-        bob: pose.bob + restBob,
+      const restMix = phase === 'rest' ? 1 : 0.35;
+      return {
+        tilt: pose.tilt + live.tilt * restMix,
+        bob: pose.bob + live.breath * (phase === 'rest' ? 1 : 0.25),
         scale: pose.scale,
         eyeOpen,
-        eyeL,
-        eyeR,
-        lid,
         mouth,
         gazeX: live.gazeX,
         gazeY: live.gazeY,
-        specX: live.specX,
-        specY: live.specY,
-        ear: live.ear,
+        lid,
+        specX: 36 + pose.tilt * 1.2,
+        specY: 28 - Math.abs(pose.tilt) * 0.2,
       };
-      this._lastPose = out;
-      return out;
     }
 
-    _applyPose(p) {
-      const st = this.style;
-      st.setProperty('--tilt-deg', `${p.tilt}deg`);
-      st.setProperty('--bob-amp', `${p.bob}px`);
-      st.setProperty('--scale', String(p.scale));
-      st.setProperty('--eye-open', String(p.eyeOpen));
-      st.setProperty('--eye-l', String(p.eyeL));
-      st.setProperty('--eye-r', String(p.eyeR));
-      st.setProperty('--lid', String(p.lid));
-      st.setProperty('--mouth-open', String(p.mouth));
-      st.setProperty('--gaze-x', `${p.gazeX}px`);
-      st.setProperty('--gaze-y', `${p.gazeY}px`);
-      st.setProperty('--spec-x', `${p.specX}%`);
-      st.setProperty('--spec-y', `${p.specY}%`);
-      st.setProperty('--ear-nudge', `${p.ear}px`);
+    _applyPose(pose) {
+      this.style.setProperty('--tilt-deg', `${pose.tilt.toFixed(2)}deg`);
+      this.style.setProperty('--bob-amp', `${pose.bob.toFixed(1)}px`);
+      this.style.setProperty('--scale', pose.scale.toFixed(4));
+      this.style.setProperty('--mouth-open', clamp(pose.mouth).toFixed(3));
+      this.style.setProperty('--gaze-x', `${pose.gazeX.toFixed(1)}px`);
+      this.style.setProperty('--gaze-y', `${pose.gazeY.toFixed(1)}px`);
+      this.style.setProperty('--lid', pose.lid.toFixed(3));
+      this.style.setProperty('--eye-open', pose.eyeOpen.toFixed(3));
+      this.style.setProperty('--spec-x', `${pose.specX.toFixed(1)}%`);
+      this.style.setProperty('--spec-y', `${pose.specY.toFixed(1)}%`);
+      const ry = Math.max(2, 32 * pose.eyeOpen * pose.lid);
+      if (!this._eyeEls) {
+        this._eyeEls = [...this.shadowRoot.querySelectorAll('.eye-left ellipse.glyph-fill, .eye-right ellipse.glyph-fill')];
+      }
+      for (const el of this._eyeEls) el.setAttribute('ry', ry.toFixed(1));
     }
 
     _startLoop() {
-      const tick = (now) => {
-        const t = now / 1000 - this._t0;
+      const tick = () => {
+        const t = performance.now() / 1000 - this._t0;
         this._applyPose(this.sample(t));
         this._raf = requestAnimationFrame(tick);
       };
       this._raf = requestAnimationFrame(tick);
     }
 
-    /** Freeze current composite so chaining mid-fade never jumps. */
-    _freezeNow() {
+    _currentPose() {
       const t = performance.now() / 1000 - this._t0;
-      this._frozen = { ...this.sample(t) };
-      return this._frozen;
+      return this.sample(t);
     }
 
-    _morphTo(target, durSec) {
-      return new Promise((resolve) => {
-        const t0 = performance.now() / 1000 - this._t0;
-        const from = this._morph ? this._freezeNow() : { ...this._lastPose };
-        // default morph duration from target state table if not provided
-        const dur = durSec != null ? durSec : (target.morph || 0.45);
-        this._morph = {
-          from: {
-            tilt: from.tilt, bob: from.bob, scale: from.scale,
-            eyeOpen: from.eyeOpen, eyeL: from.eyeL ?? 1, eyeR: from.eyeR ?? 1,
-            mouth: from.mouth,
-          },
-          to: {
-            tilt: target.tilt, bob: target.bob, scale: target.scale,
-            eyeOpen: target.eyeOpen, eyeL: target.eyeL ?? 1, eyeR: target.eyeR ?? 1,
-            mouth: target.mouth,
-          },
-          t0,
-          dur,
-          resolve,
-        };
-      });
-    }
-
-    async play(state, { holdMs = Infinity, autoReturn = false, morphMs } = {}) {
+    async play(state, { holdMs = Infinity, autoReturn = false } = {}) {
       const s = state || 'thinking';
       if (s === 'resting') return this.stop();
+      const t = performance.now() / 1000 - this._t0;
+      this._setStateInternal(s, t);
       this.setAttribute('state', s);
       this.setAttribute('phase', 'enter');
-      const target = holdPose(s, 0);
-      const dur = morphMs != null ? morphMs / 1000 : target.morph;
-      await this._morphTo(target, dur);
+      const morphMs = ((STATES[s] || STATES.resting).morph || DEFAULT_MORPH) * 1000;
+      await wait(morphMs);
       this.setAttribute('phase', 'hold');
+      this._holdLocal0 = performance.now() / 1000 - this._t0;
       if (Number.isFinite(holdMs)) {
         await wait(holdMs);
         if (autoReturn) await this.stop();
       }
     }
     async stop() {
+      const t = performance.now() / 1000 - this._t0;
       this.setAttribute('phase', 'return');
-      const dur = (HOLD[this.getAttribute('state')] || HOLD.resting).morph;
-      await this._morphTo({ ...HOLD.resting, eyeL: 1, eyeR: 1 }, dur);
+      this._setStateInternal('resting', t);
       this.setAttribute('state', 'resting');
+      await wait((STATES.resting.morph || DEFAULT_MORPH) * 1000);
       this.setAttribute('phase', 'rest');
     }
-    setSpeaking(on, hz = 4.2) {
-      if (on) {
-        this.setAttribute('speaking', '');
-        this._speak = { t0: performance.now() / 1000 - this._t0, hz };
-      } else {
-        this.removeAttribute('speaking');
-        this._speak = null;
-      }
+    setSpeaking(on, open01 = 0) {
+      if (on) this.setAttribute('speaking', '');
+      else this.removeAttribute('speaking');
+      this._speakOpen = clamp(open01);
     }
-    startTalking(hz = 4.2) {
-      this.setSpeaking(true, hz);
+    startTalking(hz = 4) {
+      this.setSpeaking(true, 0);
+      clearInterval(this._speakTimer);
+      let n = 0;
+      this._speakTimer = setInterval(() => {
+        n += 1;
+        this._speakOpen = 0.12 + 0.88 * Math.abs(Math.sin(n * hz * 0.32));
+      }, 48);
     }
     stopTalking() {
-      this.setSpeaking(false);
+      clearInterval(this._speakTimer);
+      this._speakOpen = 0;
+      this.setSpeaking(false, 0);
     }
     setCasing(name) { this.setAttribute('casing', name); }
     setHybrid(src) {
