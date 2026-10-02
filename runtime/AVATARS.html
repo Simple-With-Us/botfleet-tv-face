@@ -13,9 +13,10 @@
   a:hover { text-decoration: underline; }
   header { padding: 2rem 1.5rem 1rem; max-width: 1100px; margin: 0 auto; }
   h1 { font-size: 1.75rem; margin: 0 0 .35rem; letter-spacing: -.02em; }
-  /* Sentence gap: two ASCII spaces must stay visible (HTML collapses otherwise) */
-  .sub, .ok, footer p, .links a { white-space: pre-wrap; }
-  .sub { color: var(--muted); max-width: 70ch; }
+  /* Keep two ASCII spaces visibly wider (HTML would collapse them otherwise). */
+  .prose, .sub, footer p, .ok { white-space: pre-wrap; max-width: 70ch; }
+  .sub, .ok { color: var(--muted); }
+  .ok { color: var(--ok); font-size: .85rem; }
   main { max-width: 1100px; margin: 0 auto; padding: 0 1.5rem 3rem; }
   section { margin: 1.75rem 0; }
   h2 { font-size: 1.1rem; margin: 0 0 .75rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
@@ -31,7 +32,6 @@
     border-radius: 8px; }
   .pill { display: inline-block; font-size: .7rem; padding: .15rem .45rem; border-radius: 999px;
     background: #1e293b; color: var(--accent); margin-left: .35rem; }
-  .ok { color: var(--ok); font-size: .85rem; }
   footer { max-width: 1100px; margin: 0 auto; padding: 1rem 1.5rem 2rem; color: var(--muted); font-size: .8rem; }
   code { font-size: .85em; background: #1a1f2a; padding: .1rem .3rem; border-radius: 4px; }
   pre { background: #1a1f2a; padding: .75rem 1rem; border-radius: 8px; overflow-x: auto; font-size: .8rem; }
@@ -58,6 +58,7 @@
     <a href="docs/MOUTH-CHROMA.md">Mouth chroma key</a>
     <a href="docs/COLOR-RECOLOR-PROCESS.md">Multi-tone casing recolor</a>
     <a href="docs/voice-mode.md">BotFleet voice mode (TTS clock for karaoke)</a>
+    <a href="docs/SVG-BLOUB-NOTES.md"><strong>SVG craft notes</strong> — bloub inspiration for pure sample(t)</a>
     <a href="downloads/avatar-docs-hub.zip"><strong>Download docs zip</strong> (small agent pack)</a>
   </div>
 </section>
@@ -65,7 +66,7 @@
 <section>
   <h2>Live Demos</h2>
   <div class="links">
-    <a href="code/tv-face/demo.html"><strong>TV-Face SVG v4</strong> — pure sample(t), gaze, blink, ease-out morphs, karaoke sibling text</a>
+    <a href="code/tv-face/demo.html"><strong>TV-Face SVG v4</strong> — pure sample(t), per-state morph, blinkIn, freeze-on-chain</a>
     <a href="code/orbbot/demo.html"><strong>OrbBot</strong> — next avatar scaffold</a>
     <a href="code/compare.html">Compare TV-Face vs OrbBot</a>
     <a href="index.html">Original TV-Face gallery (MP4 clips)</a>
@@ -114,12 +115,12 @@
 
 <section>
   <h2>SVG craft notes</h2>
-  <p class="sub">The TV-Face SVG runtime follows animation craft from <a href="https://bloub.vercel.app">bloub</a>: pure <code>sample(t)</code>, ease-out morphs, freeze-on-chain, per-state morph duration, and rest liveliness from gaze plus blink.  The silhouette stays TV-Face.  We are not recreating the x.ai blob.</p>
+  <p class="sub">The TV-Face SVG runtime follows animation craft from <a href="https://bloub.vercel.app">bloub</a>: pure <code>sample(t)</code>, per-state morph durations, ease-out morphs, freeze-on-chain mid-fade, blinkIn on entry, and rest liveliness from gaze plus blink.  The silhouette stays TV-Face.  We are not recreating the x.ai blob.</p>
 </section>
 
 </main>
 <footer>
-  <p>Hub for fleet agents.  Base <code>https://fleetlink.online/TV-Face/</code>.  Updated 2026-10-01 CDT.  Prose here uses two ASCII spaces after sentence terminators, and <code>white-space: pre-wrap</code> so the gap stays visible in the browser.</p>
+  <p class="prose">Hub for fleet agents.  Base <code>https://fleetlink.online/TV-Face/</code>.  Updated 2026-10-01 CDT.  Fleet prose uses two ASCII spaces after sentence terminators (visible via pre-wrap on this page).</p>
 </footer>
 <script>
 const colors = ['default','orange','blue','green','purple','pink','red','cyan','yellow','teal','coral','white','black'];
